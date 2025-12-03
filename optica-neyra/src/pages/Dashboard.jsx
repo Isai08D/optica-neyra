@@ -19,7 +19,7 @@ import InventorySystem from '../components/InventorySystem';
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [currentModule, setCurrentModule] = useState('inventory');
+  const [currentModule, setCurrentModule] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = () => {
@@ -60,37 +60,57 @@ const Dashboard = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-lg p-6">
+                
+                {/* 1. Inventario (Azul) */}
+                <div 
+                  className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow-lg p-6 cursor-pointer hover:scale-105 transition-transform" 
+                  onClick={() => setCurrentModule('inventory')}
+                >
                   <Package size={40} className="mb-4" />
                   <h3 className="text-2xl font-bold mb-2">Inventario</h3>
                   <p className="text-blue-100">Gestión de productos y stock</p>
-                  <button 
-                    onClick={() => setCurrentModule('inventory')}
-                    className="mt-4 bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors"
-                  >
+                  <button className="mt-4 bg-white text-blue-600 px-4 py-2 rounded-lg font-medium text-sm">
                     Acceder →
                   </button>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg shadow-lg p-6 opacity-50">
+                {/* 2. Ventas (Verde) - YA ACTIVADO */}
+                <div 
+                  className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg shadow-lg p-6 cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => setCurrentModule('sales')}
+                >
                   <ShoppingCart size={40} className="mb-4" />
                   <h3 className="text-2xl font-bold mb-2">Ventas</h3>
                   <p className="text-green-100">Punto de venta (POS)</p>
-                  <p className="mt-4 text-sm">Próximamente...</p>
+                  <button className="mt-4 bg-white text-green-600 px-4 py-2 rounded-lg font-medium text-sm">
+                    Acceder →
+                  </button>
                 </div>
 
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-lg p-6 opacity-50">
+                {/* 3. Clientes (Morado) - YA ACTIVADO */}
+                <div 
+                  className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg shadow-lg p-6 cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => setCurrentModule('customers')}
+                >
                   <Users size={40} className="mb-4" />
                   <h3 className="text-2xl font-bold mb-2">Clientes</h3>
                   <p className="text-purple-100">Gestión de clientes</p>
-                  <p className="mt-4 text-sm">Próximamente...</p>
+                  <button className="mt-4 bg-white text-purple-600 px-4 py-2 rounded-lg font-medium text-sm">
+                    Acceder →
+                  </button>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg shadow-lg p-6 opacity-50">
+                {/* 4. Reportes (Naranja) - YA ACTIVADO */}
+                <div 
+                  className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg shadow-lg p-6 cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => setCurrentModule('reports')}
+                >
                   <BarChart3 size={40} className="mb-4" />
                   <h3 className="text-2xl font-bold mb-2">Reportes</h3>
                   <p className="text-orange-100">Estadísticas y análisis</p>
-                  <p className="mt-4 text-sm">Próximamente...</p>
+                  <button className="mt-4 bg-white text-orange-600 px-4 py-2 rounded-lg font-medium text-sm">
+                    Acceder →
+                  </button>
                 </div>
               </div>
 

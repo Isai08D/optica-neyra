@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 const AuthContext = createContext();
 
@@ -12,62 +13,82 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Usuarios de ejemplo (en producción vendrían de una base de datos)
-  const users = [
-    {
-      id: 1,
-      email: 'admin@opticaneyra.com',
-      password: 'Admin123',
-      name: 'Administrador',
-      role: 'admin'
-    },
-    {
-      id: 2,
-      email: 'vendedor@opticaneyra.com',
-      password: 'Vendedor123',
-      name: 'Vendedor Principal',
-      role: 'vendedor'
+  // Función para cargar el perfil (sin bloquear la app)
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('perfiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle(); // Usamos maybeSingle para seguridad
+      
+      if (data) {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error cargando perfil:', error);
     }
-  ];
-
-  // Verificar si hay sesión guardada al cargar
-  useEffect(() => {
-    const savedUser = localStorage.getItem('optica_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
-
-  const login = (email, password) => {
-    const foundUser = users.find(
-      u => u.email === email && u.password === password
-    );
-
-    if (foundUser) {
-      const userData = {
-        id: foundUser.id,
-        name: foundUser.name,
-        email: foundUser.email,
-        role: foundUser.role
-      };
-      setUser(userData);
-      localStorage.setItem('optica_user', JSON.stringify(userData));
-      return { success: true };
-    }
-    
-    return { success: false, message: 'Credenciales incorrectas' };
   };
 
-  const logout = () => {
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          setUser(session.user);
+          // IMPORTANTE: Ejecutamos esto SIN 'await' para que no bloquee la pantalla
+          fetchProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error("Error sesión:", error);
+      } finally {
+        // Quitamos la pantalla de carga INMEDIATAMENTE, pase lo que pase
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        fetchProfile(session.user.id);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const login = async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('optica_user');
+    setProfile(null);
   };
 
   const value = {
     user,
+    profile,
     login,
     logout,
     loading,
@@ -76,7 +97,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

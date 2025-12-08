@@ -14,60 +14,16 @@ import {
   Printer,
   DollarSign
 } from 'lucide-react';
+import { supabase } from '../supabaseClient.js'; // Ruta corregida según tu estructura de carpetas (src/supabaseClient.js)
 
 const POSSystem = () => {
   // Estados principales
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      nombre: 'Armazón Ray-Ban Aviador',
-      categoria: 'Armazones',
-      proveedor: 'GMO',
-      codigo: 'RB3025-001',
-      stock: 5,
-      precioVenta: 299.90
-    },
-    {
-      id: 2,
-      nombre: 'Lente Oftálmico Transitions',
-      categoria: 'Lentes Oftálmicos',
-      proveedor: 'Vision Center',
-      codigo: 'TR-SV-150',
-      stock: 15,
-      precioVenta: 260.00
-    },
-    {
-      id: 3,
-      nombre: 'Lentes de Contacto Acuvue',
-      categoria: 'Lentes de Contacto',
-      proveedor: 'Econolentes',
-      codigo: 'ACV-OASYS-6',
-      stock: 3,
-      precioVenta: 119.90
-    },
-    {
-      id: 4,
-      nombre: 'Líquido de Limpieza OptiClean',
-      categoria: 'Líquidos',
-      proveedor: 'SUEGUST LENS',
-      codigo: 'OC-360ML',
-      stock: 25,
-      precioVenta: 29.90
-    },
-    {
-      id: 5,
-      nombre: 'Armazón Deportivo Suntime',
-      categoria: 'Armazones',
-      proveedor: 'Suntime Store',
-      codigo: 'ST-SPT-100',
-      stock: 8,
-      precioVenta: 180.00
-    }
-  ]);
+  const [products, setProducts] = useState([]); 
+  const [loading, setLoading] = useState(true); 
 
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredProducts, setFilteredProducts] = useState(products);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [customerName, setCustomerName] = useState('');
@@ -76,8 +32,39 @@ const POSSystem = () => {
   const [amountPaid, setAmountPaid] = useState(0);
   const [lastSale, setLastSale] = useState(null);
   const [discount, setDiscount] = useState(0);
+  const [processing, setProcessing] = useState(false);
 
   const IGV_RATE = 0.18;
+
+  // 1. CARGAR PRODUCTOS DESDE SUPABASE
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('productos')
+        .select('*')
+        .gt('stock', 0)
+        .order('nombre', { ascending: true });
+
+      if (error) throw error;
+
+      const formattedData = data.map(item => ({
+        ...item,
+        precioVenta: item.precio_venta,
+        stockMinimo: item.stock_minimo
+      }));
+
+      setProducts(formattedData);
+      setFilteredProducts(formattedData);
+    } catch (error) {
+      console.error('Error cargando productos:', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Buscar productos
   useEffect(() => {
@@ -111,7 +98,6 @@ const POSSystem = () => {
     }
   };
 
-  // Actualizar cantidad en carrito
   const updateQuantity = (productId, newQuantity) => {
     const product = products.find(p => p.id === productId);
     
@@ -132,12 +118,10 @@ const POSSystem = () => {
     ));
   };
 
-  // Remover del carrito
   const removeFromCart = (productId) => {
     setCart(cart.filter(item => item.id !== productId));
   };
 
-  // Limpiar carrito
   const clearCart = () => {
     if (window.confirm('¿Estás seguro de vaciar el carrito?')) {
       setCart([]);
@@ -145,7 +129,6 @@ const POSSystem = () => {
     }
   };
 
-  // Calcular totales
   const calculateTotals = () => {
     const subtotal = cart.reduce((sum, item) => sum + (item.precioVenta * item.quantity), 0);
     const discountAmount = (subtotal * discount) / 100;
@@ -162,59 +145,6 @@ const POSSystem = () => {
     };
   };
 
-  // Procesar pago
-  const handlePayment = () => {
-    if (cart.length === 0) {
-      alert('El carrito está vacío');
-      return;
-    }
-
-    const totals = calculateTotals();
-    
-    if (paymentMethod === 'efectivo' && parseFloat(amountPaid) < parseFloat(totals.total)) {
-      alert('El monto pagado es insuficiente');
-      return;
-    }
-
-    // Crear registro de venta
-    const sale = {
-      id: Date.now(),
-      date: new Date().toLocaleString('es-PE'),
-      customer: {
-        name: customerName || 'Cliente General',
-        dni: customerDNI || 'N/A'
-      },
-      items: [...cart],
-      totals: totals,
-      paymentMethod: paymentMethod,
-      amountPaid: paymentMethod === 'efectivo' ? parseFloat(amountPaid) : parseFloat(totals.total),
-      change: paymentMethod === 'efectivo' ? (parseFloat(amountPaid) - parseFloat(totals.total)).toFixed(2) : '0.00'
-    };
-
-    // Actualizar stock
-    const updatedProducts = products.map(product => {
-      const cartItem = cart.find(item => item.id === product.id);
-      if (cartItem) {
-        return {
-          ...product,
-          stock: product.stock - cartItem.quantity
-        };
-      }
-      return product;
-    });
-
-    setProducts(updatedProducts);
-    setLastSale(sale);
-    setCart([]);
-    setCustomerName('');
-    setCustomerDNI('');
-    setDiscount(0);
-    setAmountPaid(0);
-    setShowPaymentModal(false);
-    setShowReceiptModal(true);
-  };
-
-  // Preparar pago
   const openPaymentModal = () => {
     if (cart.length === 0) {
       alert('El carrito está vacío');
@@ -224,21 +154,137 @@ const POSSystem = () => {
     setAmountPaid(calculateTotals().total);
   };
 
+  // --- FUNCIÓN INTELIGENTE PARA REGISTRAR CLIENTE ---
+  const registerCustomerIfNew = async () => {
+    // Solo intentamos registrar si hay al menos un nombre
+    if (!customerName || customerName.trim() === '') return;
+
+    try {
+      let shouldInsert = true;
+
+      // Si hay DNI, verificamos si ya existe en la BD
+      if (customerDNI && customerDNI.trim() !== '') {
+        const { data: existingClient } = await supabase
+          .from('clientes')
+          .select('id')
+          .eq('dni', customerDNI)
+          .maybeSingle();
+
+        if (existingClient) {
+          shouldInsert = false;
+          // Opcional: Podríamos actualizar la fecha de última compra aquí
+        }
+      }
+
+      if (shouldInsert) {
+        // Insertamos el nuevo cliente
+        const { error } = await supabase.from('clientes').insert([{
+          nombre: customerName,
+          dni: customerDNI || null,
+          // Los otros campos se quedan vacíos o null por ahora
+        }]);
+        
+        if (error) console.error('Error registrando cliente automático:', error.message);
+      }
+
+    } catch (err) {
+      console.error('Error en lógica de cliente:', err);
+    }
+  };
+
+  // 2. PROCESAR PAGO
+  const handlePayment = async () => {
+    if (cart.length === 0) return;
+
+    const totals = calculateTotals();
+    
+    if (paymentMethod === 'efectivo' && parseFloat(amountPaid) < parseFloat(totals.total)) {
+      alert('El monto pagado es insuficiente');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      // PASO A: Registrar cliente si es nuevo
+      await registerCustomerIfNew();
+
+      // PASO B: Guardar Venta en Supabase
+      const saleData = {
+        total: parseFloat(totals.total),
+        items: cart, 
+        cliente_nombre: customerName || 'Cliente General',
+        cliente_dni: customerDNI || 'N/A',
+        metodo_pago: paymentMethod,
+        subtotal: parseFloat(totals.subtotalWithDiscount),
+        igv: parseFloat(totals.igv),
+        descuento: parseFloat(discount)
+      };
+
+      const { error: saleError } = await supabase
+        .from('ventas')
+        .insert([saleData]);
+
+      if (saleError) throw saleError;
+
+      // PASO C: Actualizar Stock en Supabase
+      for (const item of cart) {
+        const product = products.find(p => p.id === item.id);
+        const newStock = product.stock - item.quantity;
+
+        const { error: stockError } = await supabase
+          .from('productos')
+          .update({ stock: newStock })
+          .eq('id', item.id);
+
+        if (stockError) throw stockError;
+      }
+
+      // PASO D: Generar recibo local
+      const saleReceipt = {
+        id: Date.now(),
+        date: new Date().toLocaleString('es-PE'),
+        customer: {
+          name: customerName || 'Cliente General',
+          dni: customerDNI || 'N/A'
+        },
+        items: [...cart],
+        totals: totals,
+        paymentMethod: paymentMethod,
+        amountPaid: paymentMethod === 'efectivo' ? parseFloat(amountPaid) : parseFloat(totals.total),
+        change: paymentMethod === 'efectivo' ? (parseFloat(amountPaid) - parseFloat(totals.total)).toFixed(2) : '0.00'
+      };
+
+      await fetchProducts(); 
+      setLastSale(saleReceipt);
+      setCart([]);
+      setCustomerName('');
+      setCustomerDNI('');
+      setDiscount(0);
+      setAmountPaid(0);
+      setShowPaymentModal(false);
+      setShowReceiptModal(true);
+
+    } catch (error) {
+      alert('Error al procesar la venta: ' + error.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const totals = calculateTotals();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Punto de Venta (POS)</h1>
           <p className="text-gray-600">Sistema de ventas - Óptica Neyra</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Panel de Productos */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Búsqueda */}
+            {/* Buscador */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="relative">
                 <Search className="absolute left-3 top-3 text-gray-400" size={20} />
@@ -255,49 +301,53 @@ const POSSystem = () => {
             {/* Lista de Productos */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Productos Disponibles</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                {filteredProducts.map(product => (
-                  <div
-                    key={product.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-green-500 transition-colors cursor-pointer"
-                    onClick={() => addToCart(product)}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-800">{product.nombre}</h3>
-                        <p className="text-xs text-gray-500">{product.codigo}</p>
+              
+              {loading ? (
+                 <div className="text-center py-12 text-green-600 animate-pulse">Cargando catálogo...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                  {filteredProducts.map(product => (
+                    <div
+                      key={product.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-green-500 transition-colors cursor-pointer bg-white"
+                      onClick={() => addToCart(product)}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800">{product.nombre}</h3>
+                          <p className="text-xs text-gray-500">{product.codigo}</p>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product);
+                          }}
+                          className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 transition-colors"
+                        >
+                          <Plus size={16} />
+                        </button>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addToCart(product);
-                        }}
-                        className="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 transition-colors"
-                      >
-                        <Plus size={16} />
-                      </button>
+                      <div className="flex justify-between items-center">
+                        <span className="text-lg font-bold text-green-600">S/ {product.precioVenta.toFixed(2)}</span>
+                        <span className={`text-sm px-2 py-1 rounded ${
+                          product.stock > 10 
+                            ? 'bg-green-100 text-green-800' 
+                            : product.stock > 0
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          Stock: {product.stock}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-bold text-green-600">S/ {product.precioVenta.toFixed(2)}</span>
-                      <span className={`text-sm px-2 py-1 rounded ${
-                        product.stock > 10 
-                          ? 'bg-green-100 text-green-800' 
-                          : product.stock > 0
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        Stock: {product.stock}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Panel de Carrito */}
           <div className="space-y-6">
-            {/* Información del Cliente */}
+            {/* Panel Cliente */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center gap-2 mb-4">
                 <User className="text-gray-600" size={20} />
@@ -306,18 +356,19 @@ const POSSystem = () => {
               <div className="space-y-3">
                 <input
                   type="text"
-                  placeholder="Nombre (opcional)"
+                  placeholder="Nombre del Cliente (Obligatorio para registro)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                 />
                 <input
                   type="text"
-                  placeholder="DNI (opcional)"
+                  placeholder="DNI (Opcional)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   value={customerDNI}
                   onChange={(e) => setCustomerDNI(e.target.value)}
                 />
+                <p className="text-xs text-gray-400 mt-1">* Si el cliente es nuevo, se guardará automáticamente en el directorio.</p>
               </div>
             </div>
 
@@ -329,16 +380,10 @@ const POSSystem = () => {
                   <h2 className="text-lg font-bold text-gray-800">Carrito ({cart.length})</h2>
                 </div>
                 {cart.length > 0 && (
-                  <button
-                    onClick={clearCart}
-                    className="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Vaciar
-                  </button>
+                  <button onClick={clearCart} className="text-red-500 hover:text-red-700 text-sm">Vaciar</button>
                 )}
               </div>
 
-              {/* Items del carrito */}
               <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
                 {cart.length === 0 ? (
                   <p className="text-center text-gray-400 py-8">El carrito está vacío</p>
@@ -350,44 +395,26 @@ const POSSystem = () => {
                           <h4 className="font-medium text-sm text-gray-800">{item.nombre}</h4>
                           <p className="text-xs text-gray-500">S/ {item.precioVenta.toFixed(2)} c/u</p>
                         </div>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
+                        <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700">
                           <Trash2 size={16} />
                         </button>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            className="bg-gray-200 p-1 rounded hover:bg-gray-300"
-                          >
-                            <Minus size={14} />
-                          </button>
+                          <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="bg-gray-200 p-1 rounded hover:bg-gray-300"><Minus size={14} /></button>
                           <span className="w-8 text-center font-medium">{item.quantity}</span>
-                          <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            className="bg-gray-200 p-1 rounded hover:bg-gray-300"
-                          >
-                            <Plus size={14} />
-                          </button>
+                          <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="bg-gray-200 p-1 rounded hover:bg-gray-300"><Plus size={14} /></button>
                         </div>
-                        <span className="font-bold text-green-600">
-                          S/ {(item.precioVenta * item.quantity).toFixed(2)}
-                        </span>
+                        <span className="font-bold text-green-600">S/ {(item.precioVenta * item.quantity).toFixed(2)}</span>
                       </div>
                     </div>
                   ))
                 )}
               </div>
 
-              {/* Descuento */}
               {cart.length > 0 && (
                 <div className="mb-4 pb-4 border-b border-gray-200">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descuento (%)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Descuento (%)</label>
                   <input
                     type="number"
                     min="0"
@@ -399,7 +426,6 @@ const POSSystem = () => {
                 </div>
               )}
 
-              {/* Totales */}
               {cart.length > 0 && (
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-sm">
@@ -407,16 +433,10 @@ const POSSystem = () => {
                     <span className="font-medium">S/ {totals.subtotal}</span>
                   </div>
                   {discount > 0 && (
-                    <>
-                      <div className="flex justify-between text-sm text-red-600">
+                    <div className="flex justify-between text-sm text-red-600">
                         <span>Descuento ({discount}%):</span>
                         <span>- S/ {totals.discountAmount}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Subtotal con descuento:</span>
-                        <span className="font-medium">S/ {totals.subtotalWithDiscount}</span>
-                      </div>
-                    </>
+                    </div>
                   )}
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">IGV (18%):</span>
@@ -429,14 +449,11 @@ const POSSystem = () => {
                 </div>
               )}
 
-              {/* Botón de pago */}
               <button
                 onClick={openPaymentModal}
                 disabled={cart.length === 0}
                 className={`w-full py-3 rounded-lg font-bold text-white transition-colors ${
-                  cart.length === 0
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700'
+                  cart.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
                 Procesar Pago
@@ -451,12 +468,7 @@ const POSSystem = () => {
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-800">Procesar Pago</h2>
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
+                <button onClick={() => setShowPaymentModal(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
               </div>
 
               <div className="mb-6">
@@ -465,61 +477,27 @@ const POSSystem = () => {
                   <p className="text-3xl font-bold text-green-600">S/ {totals.total}</p>
                 </div>
 
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Método de Pago:
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Método de Pago:</label>
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                  <button
-                    onClick={() => setPaymentMethod('efectivo')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                      paymentMethod === 'efectivo'
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-green-300'
-                    }`}
-                  >
-                    <Wallet size={20} />
-                    <span className="font-medium">Efectivo</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('tarjeta')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                      paymentMethod === 'tarjeta'
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-green-300'
-                    }`}
-                  >
-                    <CreditCard size={20} />
-                    <span className="font-medium">Tarjeta</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('yape')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                      paymentMethod === 'yape'
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-green-300'
-                    }`}
-                  >
-                    <Smartphone size={20} />
-                    <span className="font-medium">Yape</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('plin')}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                      paymentMethod === 'plin'
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-green-300'
-                    }`}
-                  >
-                    <DollarSign size={20} />
-                    <span className="font-medium">Plin</span>
-                  </button>
+                  {['efectivo', 'tarjeta', 'yape', 'plin'].map((method) => (
+                    <button
+                      key={method}
+                      onClick={() => setPaymentMethod(method)}
+                      className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 transition-colors capitalize ${
+                        paymentMethod === method ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-green-300'
+                      }`}
+                    >
+                      {method === 'efectivo' && <Wallet size={20} />}
+                      {method === 'tarjeta' && <CreditCard size={20} />}
+                      {(method === 'yape' || method === 'plin') && <Smartphone size={20} />}
+                      <span className="font-medium">{method}</span>
+                    </button>
+                  ))}
                 </div>
 
                 {paymentMethod === 'efectivo' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Monto Recibido:
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Monto Recibido:</label>
                     <input
                       type="number"
                       step="0.01"
@@ -529,26 +507,16 @@ const POSSystem = () => {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg"
                     />
                     {parseFloat(amountPaid) >= parseFloat(totals.total) && (
-                      <p className="mt-2 text-sm text-green-600">
-                        Vuelto: S/ {(parseFloat(amountPaid) - parseFloat(totals.total)).toFixed(2)}
-                      </p>
+                      <p className="mt-2 text-sm text-green-600">Vuelto: S/ {(parseFloat(amountPaid) - parseFloat(totals.total)).toFixed(2)}</p>
                     )}
                   </div>
                 )}
               </div>
 
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handlePayment}
-                  className="flex-1 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                >
-                  Confirmar Pago
+                <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancelar</button>
+                <button onClick={handlePayment} disabled={processing} className={`flex-1 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors ${processing ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  {processing ? 'Procesando...' : 'Confirmar Pago'}
                 </button>
               </div>
             </div>
@@ -560,9 +528,7 @@ const POSSystem = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="text-green-600" size={32} />
-                </div>
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><Check className="text-green-600" size={32} /></div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Venta Exitosa!</h2>
                 <p className="text-gray-600">Comprobante de Venta</p>
               </div>
@@ -573,7 +539,7 @@ const POSSystem = () => {
                   <p className="text-sm text-gray-600">Huánuco, Perú</p>
                   <p className="text-xs text-gray-500">{lastSale.date}</p>
                 </div>
-
+                
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Cliente:</span>
                   <span className="font-medium">{lastSale.customer.name}</span>
@@ -595,54 +561,15 @@ const POSSystem = () => {
                 </div>
 
                 <div className="border-t border-gray-200 pt-2 mt-2 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span>Subtotal:</span>
-                    <span>S/ {lastSale.totals.subtotal}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>IGV (18%):</span>
-                    <span>S/ {lastSale.totals.igv}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
-                    <span>Total:</span>
-                    <span className="text-green-600">S/ {lastSale.totals.total}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-2 mt-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Método de pago:</span>
-                    <span className="font-medium capitalize">{lastSale.paymentMethod}</span>
-                  </div>
-                  {lastSale.paymentMethod === 'efectivo' && (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span>Recibido:</span>
-                        <span>S/ {lastSale.amountPaid.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-green-600">
-                        <span>Vuelto:</span>
-                        <span>S/ {lastSale.change}</span>
-                      </div>
-                    </>
-                  )}
+                  <div className="flex justify-between text-sm"><span>Subtotal:</span><span>S/ {lastSale.totals.subtotal}</span></div>
+                  <div className="flex justify-between text-sm"><span>IGV (18%):</span><span>S/ {lastSale.totals.igv}</span></div>
+                  <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300"><span>Total:</span><span className="text-green-600">S/ {lastSale.totals.total}</span></div>
                 </div>
               </div>
 
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowReceiptModal(false)}
-                  className="flex-1 py-3 bg-gray-200 rounded-lg font-medium text-gray-700 hover:bg-gray-300 transition-colors"
-                >
-                  Cerrar
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Printer size={20} />
-                  Imprimir
-                </button>
+                <button onClick={() => setShowReceiptModal(false)} className="flex-1 py-3 bg-gray-200 rounded-lg font-medium text-gray-700 hover:bg-gray-300 transition-colors">Cerrar</button>
+                <button onClick={() => window.print()} className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><Printer size={20} /> Imprimir</button>
               </div>
             </div>
           </div>

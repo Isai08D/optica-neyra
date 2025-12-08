@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   UserPlus, 
@@ -11,38 +11,12 @@ import {
   Save,
   User
 } from 'lucide-react';
+import { supabase } from '../supabaseClient'; // Conexión a Supabase
 
 const CustomerManagement = () => {
-  // Datos de prueba iniciales
-  const [customers, setCustomers] = useState([
-    {
-      id: 1,
-      nombre: 'Juan Pérez',
-      dni: '45896321',
-      telefono: '987654321',
-      email: 'juan.perez@email.com',
-      direccion: 'Av. San Martín 123, Huánuco',
-      fechaRegistro: '12/05/2024'
-    },
-    {
-      id: 2,
-      nombre: 'María Gonzales',
-      dni: '74125896',
-      telefono: '951753456',
-      email: 'maria.gonzales@email.com',
-      direccion: 'Jr. 28 de Julio 456, Huánuco',
-      fechaRegistro: '15/05/2024'
-    },
-    {
-      id: 3,
-      nombre: 'Carlos Ruiz',
-      dni: '12345678',
-      telefono: '963852741',
-      email: 'carlos.ruiz@email.com',
-      direccion: 'Jr. Huallayco 789, Huánuco',
-      fechaRegistro: '20/05/2024'
-    }
-  ]);
+  // Estado para clientes (ahora vacío inicialmente)
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true); // Estado de carga
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -55,17 +29,45 @@ const CustomerManagement = () => {
     direccion: ''
   });
 
+  // 1. Cargar Clientes desde Supabase
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .order('created_at', { ascending: false }); // Más recientes primero
+
+      if (error) throw error;
+      setCustomers(data);
+    } catch (error) {
+      console.error('Error cargando clientes:', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filtrar clientes
   const filteredCustomers = customers.filter(customer =>
     customer.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.dni.includes(searchTerm)
+    (customer.dni && customer.dni.includes(searchTerm))
   );
 
   // Manejar apertura del modal (Crear o Editar)
   const handleOpenModal = (customer = null) => {
     if (customer) {
       setCurrentCustomer(customer);
-      setFormData(customer);
+      setFormData({
+        nombre: customer.nombre,
+        dni: customer.dni || '',
+        telefono: customer.telefono || '',
+        email: customer.email || '',
+        direccion: customer.direccion || ''
+      });
     } else {
       setCurrentCustomer(null);
       setFormData({
@@ -79,31 +81,50 @@ const CustomerManagement = () => {
     setShowModal(true);
   };
 
-  // Guardar cliente
-  const handleSave = (e) => {
+  // Guardar cliente (Supabase)
+  const handleSave = async (e) => {
     e.preventDefault();
     
-    if (currentCustomer) {
-      // Editar existente
-      setCustomers(customers.map(c => 
-        c.id === currentCustomer.id ? { ...formData, id: c.id, fechaRegistro: c.fechaRegistro } : c
-      ));
-    } else {
-      // Crear nuevo
-      const newCustomer = {
-        ...formData,
-        id: Date.now(),
-        fechaRegistro: new Date().toLocaleDateString('es-PE')
-      };
-      setCustomers([...customers, newCustomer]);
+    try {
+      if (currentCustomer) {
+        // Editar existente
+        const { error } = await supabase
+          .from('clientes')
+          .update(formData)
+          .eq('id', currentCustomer.id);
+        
+        if (error) throw error;
+      } else {
+        // Crear nuevo
+        const { error } = await supabase
+          .from('clientes')
+          .insert([formData]);
+        
+        if (error) throw error;
+      }
+      
+      // Recargar lista y cerrar modal
+      fetchCustomers();
+      setShowModal(false);
+    } catch (error) {
+      alert('Error al guardar: ' + error.message);
     }
-    setShowModal(false);
   };
 
-  // Eliminar cliente
-  const handleDelete = (id) => {
+  // Eliminar cliente (Supabase)
+  const handleDelete = async (id) => {
     if (window.confirm('¿Estás seguro de eliminar este cliente?')) {
-      setCustomers(customers.filter(c => c.id !== id));
+      try {
+        const { error } = await supabase
+          .from('clientes')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+        fetchCustomers();
+      } catch (error) {
+        alert('Error al eliminar: ' + error.message);
+      }
     }
   };
 
@@ -153,59 +174,70 @@ const CustomerManagement = () => {
         </div>
 
         {/* Lista de Clientes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCustomers.map(customer => (
-            <div key={customer.id} className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-xl">
-                      {customer.nombre.charAt(0)}
+        {loading ? (
+           <div className="text-center py-12">
+             <p className="text-purple-600 animate-pulse text-xl">Cargando directorio...</p>
+           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCustomers.map(customer => (
+              <div key={customer.id} className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-xl">
+                        {customer.nombre.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-lg">{customer.nombre}</h3>
+                        <p className="text-sm text-gray-500">DNI: {customer.dni || 'N/A'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-lg">{customer.nombre}</h3>
-                      <p className="text-sm text-gray-500">DNI: {customer.dni}</p>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleOpenModal(customer)}
+                        className="text-blue-500 hover:bg-blue-50 p-2 rounded-full transition-colors"
+                      >
+                        <Edit size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(customer.id)}
+                        className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleOpenModal(customer)}
-                      className="text-blue-500 hover:bg-blue-50 p-2 rounded-full transition-colors"
-                    >
-                      <Edit size={18} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(customer.id)}
-                      className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
 
-                <div className="space-y-3 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} className="text-gray-400" />
-                    <span>{customer.telefono}</span>
+                  <div className="space-y-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-gray-400" />
+                      <span>{customer.telefono || 'Sin teléfono'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} className="text-gray-400" />
+                      <span className="truncate">{customer.email || 'Sin email'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={16} className="text-gray-400" />
+                      <span className="truncate">{customer.direccion || 'Sin dirección'}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Mail size={16} className="text-gray-400" />
-                    <span className="truncate">{customer.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin size={16} className="text-gray-400" />
-                    <span className="truncate">{customer.direccion}</span>
-                  </div>
-                </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
-                  <span>Registrado: {customer.fechaRegistro}</span>
-                  <span className="text-purple-600 font-medium cursor-pointer hover:underline">Ver Historial</span>
+                  <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
+                    <span>Registrado: {new Date(customer.created_at).toLocaleDateString()}</span>
+                    <span className="text-purple-600 font-medium cursor-pointer hover:underline">Ver Historial</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+            {filteredCustomers.length === 0 && (
+                <div className="col-span-full text-center py-10 text-gray-500">
+                    No se encontraron clientes.
+                </div>
+            )}
+          </div>
+        )}
 
         {/* Modal Formulario */}
         {showModal && (
@@ -237,7 +269,6 @@ const CustomerManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">DNI</label>
                     <input
                       type="text"
-                      required
                       maxLength="8"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
                       value={formData.dni}

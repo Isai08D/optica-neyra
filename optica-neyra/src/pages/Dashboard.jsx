@@ -17,7 +17,7 @@ import {
 import InventorySystem from '../components/InventorySystem';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
   const [currentModule, setCurrentModule] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -114,20 +114,29 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Información del Usuario</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <p className="text-sm text-gray-500">Nombre</p>
-                    <p className="text-lg font-semibold text-gray-800">{user?.name}</p>
+              {/* Tarjeta de Información del Usuario */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Información del Usuario</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Nombre</p>
+                    {/* Aquí mostramos el nombre real o "Cargando..." */}
+                    <p className="font-bold text-gray-800 text-lg">
+                      {profile?.nombre || 'Usuario'} 
+                    </p>
                   </div>
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <p className="text-sm text-gray-500">Email</p>
-                    <p className="text-lg font-semibold text-gray-800">{user?.email}</p>
+                  
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Email</p>
+                    <p className="font-bold text-gray-800 text-lg">{user?.email}</p>
                   </div>
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <p className="text-sm text-gray-500">Rol</p>
-                    <p className="text-lg font-semibold text-gray-800 capitalize">{user?.role}</p>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Rol</p>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                      {/* Aquí mostramos el rol real */}
+                      {profile?.rol || 'Personal'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -225,5 +234,4 @@ const Dashboard = () => {
     </div>
   );
 };
-
 export default Dashboard;

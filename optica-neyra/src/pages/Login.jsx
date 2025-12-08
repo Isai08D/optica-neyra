@@ -5,7 +5,7 @@ import { Eye, EyeOff, Lock, Mail, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login } = useAuth(); // Esta función ahora viene de Supabase
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -14,21 +14,30 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => { // Agregamos async
     if (e) e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const result = login(formData.email, formData.password);
+    try {
+      // Llamada real a Supabase (esperamos la respuesta)
+      const result = await login(formData.email, formData.password);
       
       if (result.success) {
         navigate('/dashboard');
       } else {
-        setError(result.message);
+        // Traducimos el error común de Supabase
+        if (result.message.includes('Invalid login credentials')) {
+          setError('Correo o contraseña incorrectos.');
+        } else {
+          setError(result.message);
+        }
       }
+    } catch (err) {
+      setError('Ocurrió un error inesperado.');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleChange = (e) => {
@@ -75,7 +84,7 @@ const Login = () => {
               </div>
             )}
 
-            <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Correo Electrónico
@@ -85,10 +94,11 @@ const Login = () => {
                   <input
                     type="email"
                     name="email"
+                    required
                     value={formData.email}
                     onChange={handleChange}
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="admin@opticaneyra.com"
+                    placeholder="ejemplo@optica.com"
                   />
                 </div>
               </div>
@@ -102,6 +112,7 @@ const Login = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
+                    required
                     value={formData.password}
                     onChange={handleChange}
                     className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -118,36 +129,25 @@ const Login = () => {
               </div>
 
               <button
-                onClick={handleSubmit}
+                type="submit"
                 disabled={loading}
                 className={`w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all ${
-                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                  loading ? 'opacity-70 cursor-wait' : ''
                 }`}
               >
-                {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                {loading ? 'Validando...' : 'Iniciar Sesión'}
               </button>
-            </div>
+            </form>
 
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-xs font-semibold text-gray-700 mb-2">👤 Usuarios de Prueba:</p>
-              <div className="space-y-2 text-xs text-gray-600">
-                <div className="bg-white p-2 rounded border border-gray-200">
-                  <p className="font-medium text-blue-600">Administrador:</p>
-                  <p>📧 admin@opticaneyra.com</p>
-                  <p>🔑 Admin123</p>
-                </div>
-                <div className="bg-white p-2 rounded border border-gray-200">
-                  <p className="font-medium text-green-600">Vendedor:</p>
-                  <p>📧 vendedor@opticaneyra.com</p>
-                  <p>🔑 Vendedor123</p>
-                </div>
-              </div>
+            {/* He removido la sección de usuarios de prueba para que se vea profesional */}
+            <div className="mt-6 text-center">
+               <p className="text-xs text-gray-400">Acceso restringido solo para personal autorizado.</p>
             </div>
           </div>
         </div>
 
         <p className="text-center text-white text-sm mt-6 opacity-90">
-          © 2024 Óptica Neyra - Todos los derechos reservados
+          © 2025 Isai Daza - Todos los derechos reservados
         </p>
       </div>
     </div>

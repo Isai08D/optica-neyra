@@ -5,5 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
 })
+//BD ACTUALIZACION
 //hellow world
 // Actualizacion para limpiar Vercel
